@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skillforge Digital Org Ltd - Smart Systems</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.1.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.1.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        .glass {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+        }
+
+        .ticker-scroll::-webkit-scrollbar { display: none; }
+        .ticker-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            transition: all 0.2s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        }
+
+        .profit-text { color: #4ade80; }
+        .loss-text { color: #f87171; }
+
+        @keyframes pulse-dot {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+        }
+        .live-indicator {
+            width: 8px;
+            height: 8px;
+            background-color: #4ade80;
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+
+        #tradeModal {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        #tradeModal.active {
+            display: flex;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="pb-10">
+
+    <!-- Header Section -->
+    <header class="glass sticky top-0 z-50 border-b border-slate-800 shadow-2xl">
+        <div class="max-w-6xl mx-auto px-4 py-4">
+            <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-600 p-2 rounded-lg">
+                        <i data-lucide="building-2" class="text-white w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-extrabold tracking-tight flex items-center gap-2">
+                            SKILLFORGE <span class="text-blue-500">DIGITAL ORGANIZATION LTD</span>
+                        </h1>
+                        <p class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Skillforge Digital Smart Systems</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <div id="connectionStatus" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs">
+                        <div class="live-indicator"></div>
+                        <span class="text-slate-400 font-medium">SYSTEM LIVE</span>
+                    </div>
+                    <button onclick="toggleChart()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors">
+                        <i data-lucide="layout-grid" class="w-5 h-5"></i>
+                    </button>
+                    <button onclick="openModal()" class="btn-primary px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> EXECUTE ORDER
+                    </button>
+                </div>
+            </div>
+
+            <!-- Market Ticker -->
+            <div class="mt-4 flex items-center gap-3">
+                <div class="relative w-full max-w-xs">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500"></i>
+                    <input type="text" id="marketSearch" placeholder="Search Assets..." 
+                        class="w-full bg-slate-950 border border-slate-800 rounded-full py-1.5 pl-9 pr-4 text-xs text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div id="tickerContainer" class="flex gap-3 overflow-x-auto ticker-scroll flex-1 py-1"></div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 mt-8">
+        
+        <!-- Chart Section -->
+        <section id="chartSection" class="hidden mb-8">
+            <div class="glass rounded-2xl overflow-hidden border border-slate-700 shadow-2xl">
+                <div class="p-3 bg-slate-900/50 flex justify-between items-center border-b border-slate-800">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Smart Vision Module</span>
+                    <button onclick="toggleChart()" class="text-slate-500 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <div id="tv-container" class="h-[500px]"></div>
+            </div>
+        </section>
+
+        <!-- Analytics Overview -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="glass p-4 rounded-xl border-l-4 border-blue-500">
+                <p class="text-[10px] font-bold text-slate-500 uppercase">Realized PnL</p>
+                <h2 id="totalPnl" class="text-xl font-bold font-mono">$0.00</h2>
+            </div>
+            <div class="glass p-4 rounded-xl border-l-4 border-green-500">
+                <p class="text-[10px] font-bold text-slate-500 uppercase">Accuracy Rate</p>
+                <h2 id="winRate" class="text-xl font-bold font-mono">0%</h2>
+            </div>
+            <div class="glass p-4 rounded-xl border-l-4 border-purple-500">
+                <p class="text-[10px] font-bold text-slate-500 uppercase">Total Exposure</p>
+                <h2 id="totalLots" class="text-xl font-bold font-mono">0.00</h2>
+            </div>
+            <div class="glass p-4 rounded-xl border-l-4 border-slate-500">
+                <p class="text-[10px] font-bold text-slate-500 uppercase">Active Threads</p>
+                <h2 id="activeCount" class="text-xl font-bold font-mono">0</h2>
+            </div>
+        </section>
+
+        <!-- Logging Tabs -->
+        <div class="flex gap-2 mb-6 bg-slate-900/50 p-1 rounded-xl w-fit border border-slate-800">
+            <button onclick="switchTab('active')" id="tab-active" class="px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all bg-slate-800 text-blue-400">Running Log</button>
+            <button onclick="switchTab('history')" id="tab-history" class="px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-slate-500 hover:text-slate-300">Closed Logs</button>
+        </div>
+
+        <!-- Logging Lists -->
+        <div id="activeTradesList" class="space-y-4"></div>
+
+        <div id="historyList" class="hidden overflow-x-auto glass rounded-2xl">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-900/50 text-[10px] uppercase text-slate-500 font-bold border-b border-slate-800">
+                    <tr>
+                        <th class="p-4">Instrument</th>
+                        <th class="p-4">Side</th>
+                        <th class="p-4">Volume</th>
+                        <th class="p-4">Execution Matrix</th>
+                        <th class="p-4 text-right">Settled PnL</th>
+                        <th class="p-4"></th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- Execution Modal -->
+    <div id="tradeModal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+        <div class="glass w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
+            <div class="p-6 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-white tracking-tight uppercase">Smart Order Entry</h3>
+                <button onclick="closeModal()" class="text-slate-500 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            <form id="tradeForm" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Asset Selection</label>
+                    <select id="f-instrument" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white font-bold outline-none focus:border-blue-500"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Vector</label>
+                        <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
+                            <button type="button" onclick="setSide('buy')" id="btn-buy" class="flex-1 py-2 rounded text-[10px] font-black uppercase bg-green-600 text-white shadow-lg">BUY</button>
+                            <button type="button" onclick="setSide('sell')" id="btn-sell" class="flex-1 py-2 rounded text-[10px] font-black uppercase text-slate-500">SELL</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Lot Size</label>
+                        <input type="number" id="f-lots" step="0.01" value="0.01" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono text-center outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Stop Loss</label>
+                        <input type="number" id="f-sl" step="0.00001" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1 text-green-500">Take Profit</label>
+                        <input type="number" id="f-tp" step="0.00001" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono outline-none">
+                    </div>
+                </div>
+                <button type="submit" class="w-full btn-primary py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl mt-4">EXECUTE ON SMART REGISTRY</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const DEFAULT_INSTRUMENTS = [
+            { symbol: 'Volatility 75', deriv: 'R_75', price: 0, cat: 'SYN', digit: 4 },
+            { symbol: 'Volatility 100', deriv: 'R_100', price: 0, cat: 'SYN', digit: 2 },
+            { symbol: 'Boom 1000', deriv: '1HZ100V', price: 0, cat: 'SYN', digit: 4 },
+            { symbol: 'Crash 1000', deriv: '1HZ10V', price: 0, cat: 'SYN', digit: 4 },
+            { symbol: 'EURUSD', deriv: 'frxEURUSD', price: 0, cat: 'FX', digit: 5 },
+            { symbol: 'BTCUSD', deriv: 'cryBTCUSD', price: 0, cat: 'CRY', digit: 2 },
+            { symbol: 'Gold (USD)', deriv: 'frxXAUUSD', price: 0, cat: 'MTL', digit: 2 }
+        ];
+
+        let marketData = [...DEFAULT_INSTRUMENTS];
+        let trades = [];
+        let tradeSide = 'buy';
+        let currentTab = 'active';
+
+        const config = JSON.parse(__firebase_config);
+        firebase.initializeApp(config);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        const tickerContainer = document.getElementById('tickerContainer');
+        const activeList = document.getElementById('activeTradesList');
+        const historyBody = document.getElementById('historyTableBody');
+        const searchInput = document.getElementById('marketSearch');
+
+        function initDerivSocket() {
+            const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+            ws.onopen = () => marketData.forEach(m => ws.send(JSON.stringify({ ticks: m.deriv })));
+            ws.onmessage = (msg) => {
+                const data = JSON.parse(msg.data);
+                if (data.msg_type === 'tick') {
+                    const idx = marketData.findIndex(m => m.deriv === data.tick.symbol);
+                    if (idx !== -1) {
+                        marketData[idx].price = data.tick.quote;
+                        renderTickers();
+                        if (currentTab === 'active') renderActiveTrades();
+                    }
+                }
+            };
+            ws.onclose = () => setTimeout(initDerivSocket, 5000);
+        }
+
+        async function initApp() {
+            lucide.createIcons();
+            initDerivSocket();
+            populateInstrumentSelect();
+
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await auth.signInWithCustomToken(__initial_auth_token);
+            } else {
+                await auth.signInAnonymously();
+            }
+
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    const q = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('trades');
+                    q.onSnapshot(snap => {
+                        trades = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        trades.sort((a,b) => (b.openTime?.toMillis() || 0) - (a.openTime?.toMillis() || 0));
+                        updateStats();
+                        renderActiveTrades();
+                        renderHistory();
+                    });
+                }
+            });
+        }
+
+        function renderTickers() {
+            const q = searchInput.value.toLowerCase();
+            const filtered = marketData.filter(m => m.symbol.toLowerCase().includes(q));
+            tickerContainer.innerHTML = filtered.map(t => `
+                <div class="glass min-w-[120px] p-2 rounded-lg border border-slate-800">
+                    <p class="text-[9px] font-bold text-slate-500 uppercase">${t.cat}</p>
+                    <p class="text-xs font-black text-blue-100 truncate">${t.symbol}</p>
+                    <p class="text-xs font-mono text-white mt-1">${t.price > 0 ? t.price.toFixed(t.digit) : '...'}</p>
+                </div>
+            `).join('');
+        }
+
+        function calculatePnl(trade) {
+            const current = marketData.find(m => m.symbol === trade.instrument);
+            if (!current || !current.price) return { profit: "0.00", isProfit: true };
+            let diff = trade.type === 'buy' ? (current.price - trade.entryPrice) : (trade.entryPrice - current.price);
+            let profit = diff * trade.lots;
+            if (trade.instrument.includes('USD') && !trade.instrument.includes('BTC') && !trade.instrument.includes('Gold')) {
+                profit = (diff * 10000) * trade.lots;
+            }
+            return { profit: profit.toFixed(2), isProfit: profit >= 0 };
+        }
+
+        function renderActiveTrades() {
+            const active = trades.filter(t => t.status === 'running');
+            if (active.length === 0) {
+                activeList.innerHTML = `<div class="text-center py-12 border-2 border-dashed border-slate-800 rounded-2xl"><p class="text-slate-500 text-sm">Logging Module: Idle. No running trades found.</p></div>`;
+                return;
+            }
+            activeList.innerHTML = active.map(t => {
+                const { profit, isProfit } = calculatePnl(t);
+                const current = marketData.find(m => m.symbol === t.instrument);
+                return `
+                    <div class="glass p-5 rounded-2xl border-l-4 ${isProfit ? 'border-green-500' : 'border-red-500'}">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-lg font-black text-white">${t.instrument}</span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${t.type === 'buy' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">${t.type}</span>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-1 font-mono">
+                                    LOG ID: <span class="text-slate-400">${t.id.slice(0,8)}</span> | ENTRY: <span class="text-slate-300">${t.entryPrice}</span> | LOT: ${t.lots}
+                                </p>
+                            </div>
+                            <div class="text-right">
+                                <h3 class="text-xl font-black font-mono ${isProfit ? 'profit-text' : 'loss-text'}">$${profit}</h3>
+                                <p class="text-[10px] text-slate-500 font-bold uppercase">Dynamic PnL Log</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex gap-3">
+                            <button onclick="modifyToBE('${t.id}')" class="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all">Move to BE</button>
+                            <button onclick="closeTrade('${t.id}')" class="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all">Close & Log Trade</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderHistory() {
+            const history = trades.filter(t => t.status === 'closed');
+            historyBody.innerHTML = history.map(t => `
+                <tr class="hover:bg-slate-800/30 transition-colors border-b border-slate-800/50">
+                    <td class="p-4 text-xs font-bold text-slate-300">${t.instrument}</td>
+                    <td class="p-4"><span class="px-2 py-0.5 rounded text-[9px] font-black uppercase ${t.type === 'buy' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">${t.type}</span></td>
+                    <td class="p-4 text-xs font-mono text-slate-400">${t.lots}</td>
+                    <td class="p-4 text-[10px] font-mono text-slate-500">${t.entryPrice} <i data-lucide="arrow-right" class="w-2 h-2 inline"></i> ${t.closePrice || '---'}</td>
+                    <td class="p-4 text-right font-mono font-bold ${t.pnl >= 0 ? 'profit-text' : 'loss-text'}">$${t.pnl?.toFixed(2) || '0.00'}</td>
+                    <td class="p-4 text-right">
+                        <button onclick="deleteTrade('${t.id}')" class="text-slate-600 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function updateStats() {
+            const closed = trades.filter(t => t.status === 'closed');
+            const totalPnl = closed.reduce((acc, curr) => acc + (curr.pnl || 0), 0);
+            const totalLots = trades.reduce((acc, curr) => acc + (curr.lots || 0), 0);
+            const wins = closed.filter(t => t.pnl > 0).length;
+            const winRate = closed.length > 0 ? (wins / closed.length * 100).toFixed(0) : 0;
+            const active = trades.filter(t => t.status === 'running').length;
+
+            document.getElementById('totalPnl').innerText = `$${totalPnl.toFixed(2)}`;
+            document.getElementById('totalPnl').className = `text-xl font-bold font-mono ${totalPnl >= 0 ? 'profit-text' : 'loss-text'}`;
+            document.getElementById('totalLots').innerText = totalLots.toFixed(2);
+            document.getElementById('winRate').innerText = `${winRate}%`;
+            document.getElementById('activeCount').innerText = active;
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            const activeBtn = document.getElementById('tab-active');
+            const historyBtn = document.getElementById('tab-history');
+            const activeListDiv = document.getElementById('activeTradesList');
+            const historyDiv = document.getElementById('historyList');
+
+            if (tab === 'active') {
+                activeBtn.className = "px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all bg-slate-800 text-blue-400 shadow-lg border border-slate-700";
+                historyBtn.className = "px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-slate-500 hover:text-slate-300";
+                activeListDiv.classList.remove('hidden');
+                historyDiv.classList.add('hidden');
+            } else {
+                historyBtn.className = "px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all bg-slate-800 text-blue-400 shadow-lg border border-slate-700";
+                activeBtn.className = "px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-slate-500 hover:text-slate-300";
+                activeListDiv.classList.add('hidden');
+                historyDiv.classList.remove('hidden');
+            }
+        }
+
+        function toggleChart() {
+            const s = document.getElementById('chartSection');
+            s.classList.toggle('hidden');
+            if (!s.classList.contains('hidden')) {
+                new TradingView.widget({
+                    "width": "100%", "height": 500, "symbol": "DERIV:R_75",
+                    "interval": "D", "timezone": "Etc/UTC", "theme": "dark",
+                    "style": "1", "locale": "en", "toolbar_bg": "#f1f3f6",
+                    "enable_publishing": false, "allow_symbol_change": true,
+                    "container_id": "tv-container"
+                });
+            }
+        }
+
+        function setSide(side) {
+            tradeSide = side;
+            document.getElementById('btn-buy').className = side === 'buy' ? "flex-1 py-2 rounded text-[10px] font-black uppercase bg-green-600 text-white shadow-lg" : "flex-1 py-2 rounded text-[10px] font-black uppercase text-slate-500";
+            document.getElementById('btn-sell').className = side === 'sell' ? "flex-1 py-2 rounded text-[10px] font-black uppercase bg-red-600 text-white shadow-lg" : "flex-1 py-2 rounded text-[10px] font-black uppercase text-slate-500";
+        }
+
+        function openModal() { document.getElementById('tradeModal').classList.add('active'); }
+        function closeModal() { document.getElementById('tradeModal').classList.remove('active'); }
+
+        function populateInstrumentSelect() {
+            const s = document.getElementById('f-instrument');
+            s.innerHTML = marketData.map(m => `<option value="${m.symbol}">${m.symbol}</option>`).join('');
+        }
+
+        document.getElementById('tradeForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const inst = document.getElementById('f-instrument').value;
+            const curr = marketData.find(m => m.symbol === inst);
+            const user = auth.currentUser;
+            await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('trades').add({
+                instrument: inst, type: tradeSide, 
+                lots: parseFloat(document.getElementById('f-lots').value) || 0.01,
+                entryPrice: curr.price || 0,
+                stopLoss: parseFloat(document.getElementById('f-sl').value) || 0,
+                takeProfit: parseFloat(document.getElementById('f-tp').value) || 0,
+                status: 'running', openTime: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            closeModal();
+            e.target.reset();
+        };
+
+        async function closeTrade(id) {
+            const t = trades.find(tr => tr.id === id);
+            const { profit } = calculatePnl(t);
+            const curr = marketData.find(m => m.symbol === t.instrument);
+            const user = auth.currentUser;
+            await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('trades').doc(id).update({
+                status: 'closed', closePrice: curr.price, pnl: parseFloat(profit),
+                closeTime: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        async function modifyToBE(id) {
+            const t = trades.find(tr => tr.id === id);
+            const user = auth.currentUser;
+            await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('trades').doc(id).update({ stopLoss: t.entryPrice });
+        }
+
+        async function deleteTrade(id) {
+            if (confirm("Delete this log entry?")) {
+                const user = auth.currentUser;
+                await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('trades').doc(id).delete();
+            }
+        }
+
+        searchInput.oninput = renderTickers;
+        window.onload = initApp;
+    </script>
+    <script src="https://s3.tradingview.com/tv.js"></script>
+</body>
+</html>
