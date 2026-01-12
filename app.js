@@ -34,6 +34,10 @@ let currentEditTradeId = null;
 let derivWS = null;
 let trailingSettings = {};
 let lastSLWriteTime = {};
+let lwChart = null;
+let lwSeries = null;
+let currentChartSymbol = null;
+let chartSubscriptions = new Set();
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -123,6 +127,14 @@ function setupUIListeners() {
     [fInst, fSide, fTag, fFrom, fTo].forEach(el => {
         if(el) el.addEventListener('input', renderHistory);
         if(el) el.addEventListener('change', renderHistory);
+    });
+    const tickerContainer = document.getElementById('tickerContainer');
+    if(tickerContainer) tickerContainer.addEventListener('click', (e) => {
+        const card = e.target.closest('[data-deriv]');
+        if(card) {
+            const sym = card.getAttribute('data-deriv');
+            showChartForSymbol(sym);
+        }
     });
 }
 
@@ -325,6 +337,7 @@ function updatePrice(tick) {
     }
     // Update active trades PnL in real-time
     updateActiveTradesPnL(tick);
+    updateChartOnTick(tick);
 }
 
 function populateInstrumentSelect() {
@@ -463,21 +476,10 @@ let tvWidget = null;
 async function toggleChart() {
     const s = document.getElementById('chartSection');
     s.classList.toggle('hidden');
-    if (!s.classList.contains('hidden') && !tvWidget) {
-        try {
-            if (typeof window.loadTradingView === 'function') {
-                await window.loadTradingView();
-            }
-            tvWidget = new window.TradingView.widget({
-                width: "100%", height: 500, symbol: "DERIV:R_75",
-                interval: "D", timezone: "Etc/UTC", theme: "dark",
-                style: "1", locale: "en", toolbar_bg: "#f1f3f6",
-                enable_publishing: false, allow_symbol_change: true,
-                container_id: "tv-container"
-            });
-        } catch (e) {
-            showNotification('Chart library failed to load.', 'error');
-            console.error('TradingView load error:', e);
+    if (!s.classList.contains('hidden')) {
+        if(!currentChartSymbol) {
+            const def = marketData.find(m => m.deriv && m.deriv.includes('R_75'));
+            showChartForSymbol(def ? def.deriv : 'R_75');
         }
     }
 }
@@ -541,7 +543,7 @@ function renderTickers() {
     const q = document.getElementById('marketSearch').value.toLowerCase();
     const filtered = marketData.filter(m => m.symbol.toLowerCase().includes(q));
     document.getElementById('tickerContainer').innerHTML = filtered.map(t => `
-        <div class="glass min-w-[120px] p-2 rounded-lg border border-slate-800">
+        <div class="glass min-w-[120px] p-2 rounded-lg border border-slate-800 cursor-pointer" data-deriv="${t.deriv}" data-symbol="${t.symbol}">
             <p class="text-[9px] font-bold text-slate-500 uppercase">${t.cat}</p>
             <p class="text-xs font-black text-blue-100 truncate">${t.symbol}</p>
             <p class="text-xs font-mono text-white mt-1">${t.price > 0 ? t.price.toFixed(t.digit) : '...'}</p>
@@ -551,6 +553,56 @@ function renderTickers() {
 
 document.getElementById('marketSearch').oninput = renderTickers;
 
+async function ensureLightweightChart() {
+    if(typeof window.loadLightweightCharts === 'function') {
+        await window.loadLightweightCharts();
+    }
+    if(!lwChart) {
+        const container = document.getElementById('tv-container');
+        lwChart = window.LightweightCharts.createChart(container, {
+            width: container.clientWidth,
+            height: 500,
+            layout: { background: { type: 'solid', color: '#0f172a' }, textColor: '#cbd5e1' },
+            grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+            rightPriceScale: { borderColor: '#334155' },
+            timeScale: { borderColor: '#334155' }
+        });
+        lwSeries = lwChart.addLineSeries({ color: '#60a5fa', lineWidth: 2 });
+        window.addEventListener('resize', () => {
+            lwChart.applyOptions({ width: container.clientWidth });
+        });
+    }
+}
+
+function subscribeChartSymbol(symbol) {
+    if(derivWS && derivWS.readyState === WebSocket.OPEN) {
+        safeSend({ ticks: [symbol] });
+        chartSubscriptions.add(symbol);
+        if(chartSubscriptions.size > 5) {
+            safeSend({ forget_all: 'ticks' });
+            chartSubscriptions.clear();
+            subscribeToTicks();
+            safeSend({ ticks: [symbol] });
+        }
+    }
+}
+
+async function showChartForSymbol(symbol) {
+    const s = document.getElementById('chartSection');
+    if(s.classList.contains('hidden')) s.classList.remove('hidden');
+    await ensureLightweightChart();
+    currentChartSymbol = symbol;
+    if(lwSeries) {
+        lwSeries.setData([]);
+    }
+    subscribeChartSymbol(symbol);
+}
+
+function updateChartOnTick(tick) {
+    if(lwSeries && currentChartSymbol === tick.symbol) {
+        lwSeries.update({ time: tick.epoch, value: tick.quote });
+    }
+}
 // --- Trade Logic ---
 
 function loadUserTrades(uid) {
