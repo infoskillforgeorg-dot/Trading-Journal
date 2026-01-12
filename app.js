@@ -460,18 +460,25 @@ function handleAdminAuth(e) {
 
 
 let tvWidget = null;
-function toggleChart() {
+async function toggleChart() {
     const s = document.getElementById('chartSection');
     s.classList.toggle('hidden');
-    
     if (!s.classList.contains('hidden') && !tvWidget) {
-        tvWidget = new TradingView.widget({
-            "width": "100%", "height": 500, "symbol": "DERIV:R_75",
-            "interval": "D", "timezone": "Etc/UTC", "theme": "dark",
-            "style": "1", "locale": "en", "toolbar_bg": "#f1f3f6",
-            "enable_publishing": false, "allow_symbol_change": true,
-            "container_id": "tv-container"
-        });
+        try {
+            if (typeof window.loadTradingView === 'function') {
+                await window.loadTradingView();
+            }
+            tvWidget = new window.TradingView.widget({
+                width: "100%", height: 500, symbol: "DERIV:R_75",
+                interval: "D", timezone: "Etc/UTC", theme: "dark",
+                style: "1", locale: "en", toolbar_bg: "#f1f3f6",
+                enable_publishing: false, allow_symbol_change: true,
+                container_id: "tv-container"
+            });
+        } catch (e) {
+            showNotification('Chart library failed to load.', 'error');
+            console.error('TradingView load error:', e);
+        }
     }
 }
 
@@ -702,26 +709,20 @@ function renderActiveTrades() {
 async function loadLeaderboard() {
     const container = document.getElementById('leaderboardContent');
     if(!container) return;
-
     try {
-        // Note: In a real production app, this should be a cloud function to avoid fetching all users on client
-        // For this scale, client-side aggregation is acceptable
         const usersSnap = await db.collection('users').get();
         const leaderboard = [];
-
         for (const doc of usersSnap.docs) {
             const tradesSnap = await db.collection('users').doc(doc.id).collection('trades').where('status', '==', 'closed').get();
             let totalPnL = 0;
             let wins = 0;
             const totalTrades = tradesSnap.size;
-
             tradesSnap.forEach(t => {
                 const data = t.data();
                 const pnl = data.pnl || 0;
                 totalPnL += pnl;
                 if(pnl > 0) wins++;
             });
-
             if (totalTrades > 0) {
                 leaderboard.push({
                     email: doc.data().email,
@@ -730,14 +731,11 @@ async function loadLeaderboard() {
                 });
             }
         }
-
         leaderboard.sort((a, b) => b.pnl - a.pnl);
-
         if (leaderboard.length === 0) {
             container.innerHTML = '<p class="text-center text-slate-500 text-xs py-10">No active traders yet.</p>';
             return;
         }
-
         container.innerHTML = leaderboard.slice(0, 10).map((u, i) => `
             <div class="flex items-center justify-between p-4 bg-slate-900/30 rounded-xl border border-slate-800 ${i === 0 ? 'border-yellow-500/50 bg-yellow-900/10' : ''}">
                 <div class="flex items-center gap-4">
@@ -754,10 +752,40 @@ async function loadLeaderboard() {
                 </div>
             </div>
         `).join('');
-
     } catch (e) {
-        console.error(e);
-        container.innerHTML = '<p class="text-center text-red-500 text-xs">Error loading leaderboard.</p>';
+        const container = document.getElementById('leaderboardContent');
+        try {
+            const user = auth.currentUser;
+            if(!user) throw e;
+            const tradesSnap = await db.collection('users').doc(user.uid).collection('trades').where('status', '==', 'closed').get();
+            let totalPnL = 0;
+            let wins = 0;
+            const totalTrades = tradesSnap.size;
+            tradesSnap.forEach(t => {
+                const data = t.data();
+                const pnl = data.pnl || 0;
+                totalPnL += pnl;
+                if(pnl > 0) wins++;
+            });
+            const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+            container.innerHTML = `
+                <div class="p-4 bg-slate-900/30 rounded-xl border border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="user" class="text-slate-400 w-4 h-4"></i>
+                        <h4 class="text-sm font-bold text-white">Your Performance</h4>
+                    </div>
+                    <div class="flex justify-between mt-3">
+                        <span class="font-mono font-bold ${totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}">${totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}</span>
+                        <span class="text-[10px] text-slate-500">${winRate.toFixed(1)}% Win Rate</span>
+                    </div>
+                </div>
+                <p class="text-[10px] text-slate-500 mt-2">Full leaderboard requires admin-backed aggregation.</p>
+            `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } catch (err) {
+            console.error("Leaderboard error:", e);
+            container.innerHTML = '<p class="text-center text-red-500 text-xs">Leaderboard unavailable (permissions).</p>';
+        }
     }
 }
 
