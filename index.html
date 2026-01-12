@@ -50,8 +50,8 @@
             <path d="m19 9-5 5-4-4-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <h1 id="authTitle" class="text-3xl font-black tracking-tight mb-1">SKILLFORGE</h1>
-        <p class="text-blue-400 text-xs font-bold uppercase tracking-[0.2em]">Digital Organization</p>
+        <h1 id="authTitle" class="text-2xl md:text-3xl font-black tracking-tight mb-1">SKILLFORGE <span class="text-blue-500">DIGITAL</span> &amp; CO. LTD</h1>
+        <p class="text-blue-400 text-xs font-bold uppercase tracking-[0.2em]">Official Company</p>
       </div>
 
       <!-- Landing Options (Step 1) -->
@@ -134,8 +134,8 @@
               <i data-lucide="building-2" class="text-white w-6 h-6" aria-hidden="true"></i>
             </div>
             <div>
-              <h1 class="text-xl font-extrabold tracking-tight flex items-center gap-2">
-                SKILLFORGE <span class="text-blue-500">TRADING</span>
+              <h1 class="text-xl md:text-2xl font-extrabold tracking-tight flex items-center gap-2">
+                SKILLFORGE <span class="text-blue-500">DIGITAL</span> &amp; CO. LTD
               </h1>
               <p class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Student Dashboard</p>
             </div>
@@ -153,6 +153,10 @@
 
             <button id="btn-new-trade" type="button" class="btn-primary px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
               <i data-lucide="plus-circle" class="w-4 h-4" aria-hidden="true"></i> NEW TRADE
+            </button>
+            
+            <button id="btn-export-csv" type="button" class="px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors">
+              <i data-lucide="download" class="w-4 h-4" aria-hidden="true"></i> EXPORT CSV
             </button>
 
             <button id="btn-logout" type="button" class="p-2 rounded-lg bg-red-900/20 hover:bg-red-900/40 text-red-400 transition-colors" title="Logout">
@@ -206,6 +210,15 @@
           <h2 id="activeCount" class="text-2xl font-black font-mono mt-1">0</h2>
         </div>
       </section>
+      
+      <section class="mb-8" aria-label="Equity curve">
+        <div class="glass rounded-2xl overflow-hidden border border-slate-700 shadow-2xl">
+          <div class="p-3 bg-slate-900/50 flex justify-between items-center border-b border-slate-800">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Equity Curve</span>
+          </div>
+          <div id="equityCurve" class="h-[220px]"></div>
+        </div>
+      </section>
 
       <!-- Logging Tabs -->
       <div class="flex flex-wrap gap-2 mb-6 bg-slate-900/50 p-1.5 rounded-2xl w-fit border border-slate-800" role="tablist" aria-label="Views">
@@ -219,6 +232,17 @@
       <div id="activeTradesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" aria-live="polite"></div>
 
       <div id="historyList" class="hidden overflow-x-auto glass rounded-2xl border border-slate-800" aria-hidden="true">
+        <div class="p-4 border-b border-slate-800 bg-slate-900/50 grid grid-cols-1 md:grid-cols-5 gap-3">
+          <input id="filterInstrument" placeholder="Instrument" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500">
+          <select id="filterSide" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500">
+            <option value="">Side</option>
+            <option value="buy">Buy</option>
+            <option value="sell">Sell</option>
+          </select>
+          <input id="filterTag" placeholder="Tag" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500">
+          <input id="filterFrom" type="date" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500">
+          <input id="filterTo" type="date" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500">
+        </div>
         <table class="w-full text-left border-collapse">
           <thead class="bg-slate-900/80 text-[10px] uppercase text-slate-400 font-bold border-b border-slate-800">
             <tr>
@@ -312,6 +336,33 @@
             <input type="number" id="f-tp" name="tp" step="0.00001" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono outline-none focus:border-blue-500">
           </div>
         </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="f-strategy" class="block text-[10px] font-bold text-slate-500 uppercase mb-2">Strategy</label>
+            <input type="text" id="f-strategy" name="strategy" placeholder="e.g., Breakout" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label for="f-setup" class="block text-[10px] font-bold text-slate-500 uppercase mb-2">Setup</label>
+            <input type="text" id="f-setup" name="setup" placeholder="e.g., 1-2-3" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-blue-500">
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="f-tags" class="block text-[10px] font-bold text-slate-500 uppercase mb-2">Tags</label>
+            <input type="text" id="f-tags" name="tags" placeholder="comma separated" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label for="f-riskpct" class="block text-[10px] font-bold text-slate-500 uppercase mb-2">Risk %</label>
+            <input type="number" id="f-riskpct" name="riskpct" step="0.01" placeholder="1.0" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-blue-500">
+          </div>
+        </div>
+        
+        <div>
+          <label for="f-notes" class="block text-[10px] font-bold text-slate-500 uppercase mb-2">Notes</label>
+          <textarea id="f-notes" name="notes" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-blue-500" placeholder="plan, emotions, mistakes, improvements"></textarea>
+        </div>
 
         <button type="submit" class="w-full btn-primary py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:shadow-blue-500/20 mt-4">Execute Trade</button>
       </form>
@@ -339,6 +390,23 @@
           <div class="flex gap-2">
             <input type="number" id="e-sl" step="0.00001" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono outline-none focus:border-blue-500">
             <button type="button" onclick="moveToBE()" class="px-4 bg-blue-600 hover:bg-blue-500 rounded-xl text-[10px] font-bold uppercase text-white whitespace-nowrap transition-colors">Break Even</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="e-trailing-enable" class="w-4 h-4">
+            <label for="e-trailing-enable" class="text-[10px] font-bold text-slate-500 uppercase">Enable Trailing SL</label>
+          </div>
+          <div>
+            <label for="e-trailing-pips" class="block text-[10px] font-bold text-slate-500 uppercase mb-2">Trailing Distance (pips)</label>
+            <input type="number" id="e-trailing-pips" step="0.1" placeholder="10" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono outline-none focus:border-blue-500">
+          </div>
+        </div>
+        <div>
+          <label for="e-note" class="block text-[10px] font-bold text-slate-500 uppercase mb-2">Add Note</label>
+          <textarea id="e-note" rows="2" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-blue-500" placeholder="journal your running trade"></textarea>
+          <div class="flex gap-3 mt-2">
+            <button type="button" onclick="addTradeNote()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-colors">Add Note</button>
           </div>
         </div>
         <div class="flex gap-3 mt-8">
