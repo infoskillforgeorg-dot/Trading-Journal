@@ -1,6 +1,84 @@
-body{
-  padding: 25px;
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #020617;
+    color: #f8fafc;
+    overflow-x: hidden;
 }
-.title {
-	color: #5C6AC4;
+
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+.glass {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #0f172a; 
+}
+::-webkit-scrollbar-thumb {
+    background: #334155; 
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #475569; 
+}
+
+.ticker-scroll::-webkit-scrollbar { display: none; }
+.ticker-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Utility Utilities Fallback */
+.hidden { display: none !important; }
+
+.btn-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    transition: all 0.2s ease;
+}
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+}
+
+.profit-text { color: #4ade80; }
+.loss-text { color: #f87171; }
+
+@keyframes pulse-dot {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
+.live-indicator {
+    width: 8px;
+    height: 8px;
+    background-color: #4ade80;
+    border-radius: 50%;
+    animation: pulse-dot 2s infinite;
+}
+
+.modal {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.modal.active {
+    display: flex;
+    opacity: 1;
+}
+
+/* Auth Styles */
+.auth-container {
+    background: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
+}
+
+/* Form Elements */
+select option, select optgroup {
+    background-color: #0f172a;
+    color: white;
 }
