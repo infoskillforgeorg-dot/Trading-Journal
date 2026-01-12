@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="description" content="Skillforge Admin Panel — manage students and publish leaderboard">
     <title>Admin Panel - Skillforge</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.1.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.1.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.tailwindcss.com" defer></script>
+    <script src="https://unpkg.com/lucide@latest" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/11.1.0/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/11.1.0/firebase-auth-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore-compat.js" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="pb-10 bg-slate-950">
@@ -36,7 +40,7 @@
             <div class="p-4 border-b border-slate-800 bg-slate-900/50">
                 <h3 class="text-sm font-bold text-white uppercase">Students</h3>
             </div>
-            <div id="studentList" class="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+            <div id="studentList" class="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar touch-scroll">
                 <!-- List items -->
                 <p class="text-center text-slate-500 text-xs mt-4">Loading students...</p>
             </div>
@@ -63,7 +67,10 @@
             <div class="glass rounded-2xl overflow-hidden min-h-[400px]">
                 <div class="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
                     <h3 class="text-sm font-bold text-white uppercase">Trade Log</h3>
-                    <button onclick="refreshTrades()" class="text-slate-400 hover:text-white"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
+                    <div class="flex items-center gap-3">
+                        <button onclick="refreshTrades()" class="text-slate-400 hover:text-white"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
+                        <button onclick="publishLeaderboard()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold uppercase tracking-wider">Publish Leaderboard</button>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
@@ -93,7 +100,7 @@
                     <h3 class="text-sm font-bold text-white uppercase tracking-wider">Mentor Feedback & Notes</h3>
                 </div>
                 
-                <div id="commentsList" class="space-y-3 mb-6 max-h-60 overflow-y-auto pr-2 custom-scrollbar"></div>
+                <div id="commentsList" class="space-y-3 mb-6 max-h-60 overflow-y-auto pr-2 custom-scrollbar touch-scroll"></div>
                 
                 <form id="commentForm" class="flex gap-3">
                     <input type="text" id="commentInput" placeholder="Write a constructive comment..." 
@@ -105,6 +112,9 @@
         </section>
     </main>
 
-    <script src="admin.js"></script>
+    <script src="admin.js" defer></script>
+    <script>
+      (function ensureIcons(){ if (window.lucide && typeof window.lucide.createIcons === 'function') { window.lucide.createIcons(); } else { setTimeout(ensureIcons, 50); } })();
+    </script>
 </body>
 </html>
