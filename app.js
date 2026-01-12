@@ -32,6 +32,8 @@ let tradeSide = 'buy';
 let currentTab = 'active';
 let currentEditTradeId = null;
 let derivWS = null;
+let trailingSettings = {};
+let lastSLWriteTime = {};
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -85,6 +87,7 @@ function setupUIListeners() {
     const btnRegister = document.getElementById('btn-show-register');
     const btnAdmin = document.getElementById('btn-show-admin');
     const btnBack = document.getElementById('btn-back-auth');
+    const btnExport = document.getElementById('btn-export-csv');
 
     // Debug logs to help identify issues
     if(!btnLogin) console.warn('Login button not found');
@@ -94,12 +97,23 @@ function setupUIListeners() {
     if(btnRegister) btnRegister.addEventListener('click', () => { console.log('Register Clicked'); showAuthForm('register'); });
     if(btnAdmin) btnAdmin.addEventListener('click', () => { console.log('Admin Clicked'); showAuthForm('admin'); });
     if(btnBack) btnBack.addEventListener('click', resetAuthView);
+    if(btnExport) btnExport.addEventListener('click', exportCSV);
 
     const authForm = document.getElementById('authForm');
     const adminForm = document.getElementById('adminForm');
 
     if(authForm) authForm.onsubmit = handleStudentAuth;
     if(adminForm) adminForm.onsubmit = handleAdminAuth;
+
+    const fInst = document.getElementById('filterInstrument');
+    const fSide = document.getElementById('filterSide');
+    const fTag = document.getElementById('filterTag');
+    const fFrom = document.getElementById('filterFrom');
+    const fTo = document.getElementById('filterTo');
+    [fInst, fSide, fTag, fFrom, fTo].forEach(el => {
+        if(el) el.addEventListener('input', renderHistory);
+        if(el) el.addEventListener('change', renderHistory);
+    });
 }
 
 function setupAuthListeners() {
@@ -337,6 +351,15 @@ function updateActiveTradesPnL(tick) {
         return item && item.deriv === tick.symbol;
     });
 
+    relevantTrades.forEach(t => {
+        const inst = marketData.find(m => m.symbol === t.instrument);
+        const settings = trailingSettings[t.id];
+        if(inst && settings && settings.enabled) {
+            const price = tick.quote;
+            applyTrailingStop(t, inst, price, settings.distancePips);
+        }
+    });
+
     if(relevantTrades.length > 0) {
         renderActiveTrades(); // Re-render to show new PnL
     }
@@ -418,7 +441,7 @@ async function handleStudentAuth(e) {
 function handleAdminAuth(e) {
     e.preventDefault();
     const code = document.getElementById('adminPasscode').value;
-    if (code === '#Skillmindset#') {
+    if (code === '#Skillmindset1#') {
         window.location.href = 'admin.html';
     } else {
         showNotification('Access Denied: Invalid Mentor Passcode', 'error');
@@ -519,14 +542,26 @@ document.getElementById('tradeForm').onsubmit = async (e) => {
     const user = auth.currentUser;
     
     const entry = parseFloat(document.getElementById('f-entry').value) || inst.price;
+    const sl = parseFloat(document.getElementById('f-sl').value) || 0;
+    const tp = parseFloat(document.getElementById('f-tp').value) || 0;
+    const strategy = document.getElementById('f-strategy').value || '';
+    const setup = document.getElementById('f-setup').value || '';
+    const tagsStr = document.getElementById('f-tags').value || '';
+    const riskpct = parseFloat(document.getElementById('f-riskpct').value) || 0;
+    const plannedRR = computePlannedRR(tradeSide, entry, sl, tp);
     
     await db.collection('users').doc(user.uid).collection('trades').add({
         instrument: instName,
         type: tradeSide,
         lots: parseFloat(document.getElementById('f-lots').value) || 0.01,
         entryPrice: entry,
-        stopLoss: parseFloat(document.getElementById('f-sl').value) || 0,
-        takeProfit: parseFloat(document.getElementById('f-tp').value) || 0,
+        stopLoss: sl,
+        takeProfit: tp,
+        strategy: strategy,
+        setup: setup,
+        tags: tagsStr.split(',').map(s => s.trim()).filter(Boolean),
+        riskPercent: riskpct,
+        plannedRR: plannedRR,
         status: 'running',
         openTime: firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -729,7 +764,17 @@ function loadFeedback() {
 }
 
 function renderHistory() {
-    const history = trades.filter(t => t.status === 'closed');
+    let history = trades.filter(t => t.status === 'closed');
+    const qInst = (document.getElementById('filterInstrument')?.value || '').toLowerCase();
+    const qSide = document.getElementById('filterSide')?.value || '';
+    const qTag = (document.getElementById('filterTag')?.value || '').toLowerCase();
+    const qFrom = document.getElementById('filterFrom')?.value || '';
+    const qTo = document.getElementById('filterTo')?.value || '';
+    if(qInst) history = history.filter(t => (t.instrument || '').toLowerCase().includes(qInst));
+    if(qSide) history = history.filter(t => (t.type || '') === qSide);
+    if(qTag) history = history.filter(t => Array.isArray(t.tags) && t.tags.some(tag => tag.toLowerCase().includes(qTag)));
+    if(qFrom) history = history.filter(t => t.closeTime && new Date(t.closeTime.seconds * 1000) >= new Date(qFrom));
+    if(qTo) history = history.filter(t => t.closeTime && new Date(t.closeTime.seconds * 1000) <= new Date(qTo));
     const tbody = document.getElementById('historyTableBody');
     
     if (history.length === 0) {
@@ -773,6 +818,13 @@ function openEditModal(id) {
     document.getElementById('edit-id').value = id;
     document.getElementById('e-sl').value = t.stopLoss || '';
     document.getElementById('e-current-price').value = currentPrice;
+    const s = trailingSettings[id] || { enabled: false, distancePips: 10 };
+    const eEnable = document.getElementById('e-trailing-enable');
+    const ePips = document.getElementById('e-trailing-pips');
+    if(eEnable) eEnable.checked = !!s.enabled;
+    if(ePips) ePips.value = s.distancePips;
+    if(eEnable) eEnable.onchange = () => setTrailingEnabled(id, eEnable.checked);
+    if(ePips) ePips.oninput = () => setTrailingPips(id, parseFloat(ePips.value) || 0);
     
     document.getElementById('editModal').classList.add('active');
 }
@@ -797,6 +849,7 @@ async function confirmCloseTrade() {
     const id = currentEditTradeId;
     const t = trades.find(tr => tr.id === id);
     const closePrice = parseFloat(document.getElementById('e-current-price').value) || t.entryPrice;
+    const closeNote = document.getElementById('e-note')?.value || '';
     
     const { profit, pips } = calculateMetrics(t, closePrice);
     
@@ -805,7 +858,8 @@ async function confirmCloseTrade() {
         closePrice: closePrice,
         pnl: parseFloat(profit),
         pips: parseFloat(pips),
-        closeTime: firebase.firestore.FieldValue.serverTimestamp()
+        closeTime: firebase.firestore.FieldValue.serverTimestamp(),
+        closeNote: closeNote
     });
     closeEditModal();
 }
@@ -814,15 +868,15 @@ function updateStats() {
     const closed = trades.filter(t => t.status === 'closed');
     const totalPnl = closed.reduce((acc, curr) => acc + (curr.pnl || 0), 0);
     const totalLots = trades.reduce((acc, curr) => acc + (curr.lots || 0), 0);
-    const wins = closed.filter(t => t.pnl > 0).length;
-    const winRate = closed.length > 0 ? (wins / closed.length * 100).toFixed(0) : 0;
+    const wins = closed.filter(t => (t.pnl || 0) > 0).length;
+    const winRateNum = closed.length > 0 ? (wins / closed.length * 100) : 0;
     const active = trades.filter(t => t.status === 'running').length;
-
     document.getElementById('totalPnl').innerText = `$${totalPnl.toFixed(2)}`;
     document.getElementById('totalPnl').className = `text-xl font-bold font-mono ${totalPnl >= 0 ? 'profit-text' : 'loss-text'}`;
     document.getElementById('totalLots').innerText = totalLots.toFixed(2);
-    document.getElementById('winRate').innerText = `${winRate}%`;
+    document.getElementById('winRate').innerText = `${winRateNum.toFixed(0)}%`;
     document.getElementById('activeCount').innerText = active;
+    renderEquityCurve(closed);
 }
 
 // --- Leaderboard ---
@@ -894,4 +948,148 @@ function loadFeedback() {
                 `;
             }).join('');
         });
+}
+
+function addTradeNote() {
+    const id = currentEditTradeId;
+    const text = document.getElementById('e-note')?.value || '';
+    if(!id || !text.trim()) return;
+    db.collection('users').doc(auth.currentUser.uid).collection('trades').doc(id)
+      .collection('journal').add({
+        text,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(() => {
+        document.getElementById('e-note').value = '';
+        showNotification('Note added', 'success');
+      }).catch(() => showNotification('Failed to add note', 'error'));
+}
+
+function setTrailingEnabled(id, enabled) {
+    trailingSettings[id] = trailingSettings[id] || { enabled: false, distancePips: 10 };
+    trailingSettings[id].enabled = enabled;
+}
+
+function setTrailingPips(id, pips) {
+    trailingSettings[id] = trailingSettings[id] || { enabled: false, distancePips: 10 };
+    trailingSettings[id].distancePips = pips;
+}
+
+function computePipMultiplier(inst) {
+    if (inst.cat === 'FX') {
+        if (inst.symbol.includes('JPY')) return 100;
+        return 10000;
+    } else if (inst.cat === 'COM' && (inst.symbol.includes('Gold') || inst.symbol.includes('XAU'))) {
+        return 10;
+    } else if (inst.cat === 'CRY') {
+        return 1;
+    } else {
+        return 1;
+    }
+}
+
+function applyTrailingStop(t, inst, currentPrice, distancePips) {
+    const mult = computePipMultiplier(inst);
+    const delta = distancePips / mult;
+    let newSL = t.stopLoss || 0;
+    if(t.type === 'buy') {
+        if(currentPrice > t.entryPrice) {
+            const candidate = currentPrice - delta;
+            if(candidate > newSL) newSL = candidate;
+        }
+    } else {
+        if(currentPrice < t.entryPrice) {
+            const candidate = currentPrice + delta;
+            if(newSL === 0 || candidate < newSL) newSL = candidate;
+        }
+    }
+    const minStep = 1 / mult;
+    const last = lastSLWriteTime[t.id] || 0;
+    if(Math.abs(newSL - (t.stopLoss || 0)) > minStep && Date.now() - last > 4000) {
+        lastSLWriteTime[t.id] = Date.now();
+        db.collection('users').doc(auth.currentUser.uid).collection('trades').doc(t.id).update({
+            stopLoss: newSL
+        }).catch(() => {});
+    }
+}
+function renderEquityCurve(closed) {
+    const container = document.getElementById('equityCurve');
+    if(!container) return;
+    const sorted = closed.slice().sort((a,b) => {
+        const ta = a.closeTime ? a.closeTime.seconds : 0;
+        const tb = b.closeTime ? b.closeTime.seconds : 0;
+        return ta - tb;
+    });
+    let points = [];
+    let cum = 0;
+    sorted.forEach((t, i) => {
+        cum += t.pnl || 0;
+        points.push({ x: i, y: cum });
+    });
+    const w = container.clientWidth || 800;
+    const h = container.clientHeight || 220;
+    const maxY = points.length ? Math.max(...points.map(p => p.y)) : 1;
+    const minY = points.length ? Math.min(...points.map(p => p.y)) : -1;
+    const spanY = maxY - minY || 1;
+    const scaleX = points.length > 1 ? (w - 20) / (points.length - 1) : 1;
+    const path = points.map((p, i) => {
+        const x = 10 + i * scaleX;
+        const y = 10 + (h - 20) - ((p.y - minY) / spanY) * (h - 20);
+        return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+    }).join(' ');
+    const color = (points.length && points[points.length - 1].y >= 0) ? '#4ade80' : '#f87171';
+    container.innerHTML = `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${path}" fill="none" stroke="${color}" stroke-width="2"/></svg>`;
+}
+
+function exportCSV() {
+    const headers = ['id','instrument','type','lots','entryPrice','stopLoss','takeProfit','status','openTime','closePrice','pnl','pips','closeTime','strategy','setup','tags','riskPercent','plannedRR'];
+    const rows = trades.map(t => {
+        const open = t.openTime ? new Date(t.openTime.seconds * 1000).toISOString() : '';
+        const close = t.closeTime ? new Date(t.closeTime.seconds * 1000).toISOString() : '';
+        const tags = Array.isArray(t.tags) ? t.tags.join('|') : '';
+        return [
+            t.id,
+            t.instrument || '',
+            t.type || '',
+            t.lots || '',
+            t.entryPrice || '',
+            t.stopLoss || '',
+            t.takeProfit || '',
+            t.status || '',
+            open,
+            t.closePrice || '',
+            t.pnl || '',
+            t.pips || '',
+            close,
+            t.strategy || '',
+            t.setup || '',
+            tags,
+            t.riskPercent || '',
+            t.plannedRR || ''
+        ].map(v => (typeof v === 'string' && v.includes(',')) ? `"${v}"` : v).join(',');
+    });
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'trades.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function computePlannedRR(side, entry, sl, tp) {
+    if(!entry || !sl || !tp) return 0;
+    if(side === 'buy') {
+        const risk = entry - sl;
+        const reward = tp - entry;
+        if(risk <= 0) return 0;
+        return parseFloat((reward / risk).toFixed(2));
+    } else {
+        const risk = sl - entry;
+        const reward = entry - tp;
+        if(risk <= 0) return 0;
+        return parseFloat((reward / risk).toFixed(2));
+    }
 }
