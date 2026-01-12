@@ -5,6 +5,10 @@ body {
     background-color: #020617;
     color: #f8fafc;
     overflow-x: hidden;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
 }
 
 .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -70,6 +74,8 @@ body {
 .modal.active {
     display: flex;
     opacity: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Auth Styles */
@@ -81,4 +87,22 @@ body {
 select option, select optgroup {
     background-color: #0f172a;
     color: white;
+}
+
+/* Prevent iOS input zoom by ensuring 16px font-size */
+input, select, textarea, button {
+    font-size: 16px;
+}
+
+.icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+}
+
+.touch-scroll {
+    -webkit-overflow-scrolling: touch;
 }
