@@ -461,6 +461,19 @@
       });
     };
   </script>
+  <script>
+    window.loadLightweightCharts = async function() {
+      if (window.LightweightCharts) return Promise.resolve(window.LightweightCharts);
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js';
+        s.defer = true;
+        s.onload = () => resolve(window.LightweightCharts);
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    };
+  </script>
 
   <!-- Initialize icons once lucide is loaded (Lucide script was loaded with defer so this runs after parsing) -->
   <script>
