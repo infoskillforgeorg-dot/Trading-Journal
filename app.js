@@ -513,9 +513,21 @@ function setSide(side) {
     document.getElementById('btn-sell').className = side === 'sell' ? "flex-1 py-2 rounded text-[10px] font-black uppercase bg-red-600 text-white shadow-lg" : "flex-1 py-2 rounded text-[10px] font-black uppercase text-slate-500";
 }
 
-function openModal() { document.getElementById('tradeModal').classList.add('active'); }
-function closeModal() { document.getElementById('tradeModal').classList.remove('active'); }
-function closeEditModal() { document.getElementById('editModal').classList.remove('active'); }
+function openModal() { 
+    const m = document.getElementById('tradeModal'); 
+    m.classList.remove('hidden'); 
+    m.classList.add('active'); 
+}
+function closeModal() { 
+    const m = document.getElementById('tradeModal'); 
+    m.classList.remove('active'); 
+    m.classList.add('hidden'); 
+}
+function closeEditModal() { 
+    const m = document.getElementById('editModal'); 
+    m.classList.remove('active'); 
+    m.classList.add('hidden'); 
+}
 function logout() { auth.signOut(); }
 
 function renderTickers() {
@@ -849,7 +861,9 @@ function openEditModal(id) {
     if(eEnable) eEnable.onchange = () => setTrailingEnabled(id, eEnable.checked);
     if(ePips) ePips.oninput = () => setTrailingPips(id, parseFloat(ePips.value) || 0);
     
-    document.getElementById('editModal').classList.add('active');
+    const m = document.getElementById('editModal');
+    m.classList.remove('hidden');
+    m.classList.add('active');
 }
 
 function moveToBE() {
