@@ -351,6 +351,30 @@
 
   <!-- Application JS (deferred). All DOM-dependent initialization should be in app.js -->
   <script src="app.js" defer></script>
+  <!-- Boot monitor: if app.js fails to load (e.g., wrong folder), show a visible banner -->
+  <script>
+    (function () {
+      // After parsing, wait briefly; app.js sets window.appInitialized = true on success
+      setTimeout(function () {
+        if (!window.appInitialized) {
+          var banner = document.createElement('div');
+          banner.style.position = 'fixed';
+          banner.style.top = '0';
+          banner.style.left = '0';
+          banner.style.right = '0';
+          banner.style.zIndex = '1000';
+          banner.style.padding = '12px 16px';
+          banner.style.background = '#7f1d1d';
+          banner.style.color = 'white';
+          banner.style.font = 'bold 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Inter';
+          banner.style.textAlign = 'center';
+          banner.textContent = 'App failed to initialize: local scripts not found. Open the main index.html from: c:\\Users\\HP\\Documents\\trae_projects\\skillforg registry\\';
+          document.body.appendChild(banner);
+          console.error('App boot failed — app.js likely missing for this file location. Open the project index.html instead.');
+        }
+      }, 600);
+    })();
+  </script>
 
   <!-- TradingView (defer) - we will lazy-load the heavy widget only when chart is opened -->
   <script>
