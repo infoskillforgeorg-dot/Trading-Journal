@@ -710,6 +710,33 @@ async function loadLeaderboard() {
     const container = document.getElementById('leaderboardContent');
     if(!container) return;
     try {
+        const pub = await db.collection('public').doc('leaderboard').get();
+        if (pub.exists) {
+            const data = pub.data();
+            const entries = Array.isArray(data.entries) ? data.entries : [];
+            if (entries.length === 0) {
+                container.innerHTML = '<p class="text-center text-slate-500 text-xs py-10">No leaderboard entries yet.</p>';
+                return;
+            }
+            container.innerHTML = entries.slice(0, 10).map((u, i) => `
+                <div class="flex items-center justify-between p-4 bg-slate-900/30 rounded-xl border border-slate-800 ${i === 0 ? 'border-yellow-500/50 bg-yellow-900/10' : ''}">
+                    <div class="flex items-center gap-4">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${i === 0 ? 'bg-yellow-500 text-black' : 'bg-slate-800 text-slate-400'}">
+                            ${i + 1}
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-white">${(u.name || u.email || '').toString().split('@')[0]}</p>
+                            <p class="text-[10px] text-slate-500">${(u.winRate || 0).toFixed(1)}% Win Rate</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-mono font-bold ${u.pnl >= 0 ? 'text-green-400' : 'text-red-400'}">${u.pnl >= 0 ? '+' : ''}${(u.pnl || 0).toFixed(2)}</p>
+                    </div>
+                </div>
+            `).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            return;
+        }
         const usersSnap = await db.collection('users').get();
         const leaderboard = [];
         for (const doc of usersSnap.docs) {
