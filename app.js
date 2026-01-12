@@ -88,6 +88,11 @@ function setupUIListeners() {
     const btnAdmin = document.getElementById('btn-show-admin');
     const btnBack = document.getElementById('btn-back-auth');
     const btnExport = document.getElementById('btn-export-csv');
+    const btnNewTrade = document.getElementById('btn-new-trade');
+    const btnLogout = document.getElementById('btn-logout');
+    const btnToggleChart = document.getElementById('btn-toggle-chart');
+    const btnCloseChart = document.getElementById('btn-close-chart');
+    const tradeModalClose = document.getElementById('tradeModalClose');
 
     // Debug logs to help identify issues
     if(!btnLogin) console.warn('Login button not found');
@@ -98,6 +103,11 @@ function setupUIListeners() {
     if(btnAdmin) btnAdmin.addEventListener('click', () => { console.log('Admin Clicked'); showAuthForm('admin'); });
     if(btnBack) btnBack.addEventListener('click', resetAuthView);
     if(btnExport) btnExport.addEventListener('click', exportCSV);
+    if(btnNewTrade) btnNewTrade.addEventListener('click', () => { console.log('New Trade Clicked'); openModal(); });
+    if(tradeModalClose) tradeModalClose.addEventListener('click', closeModal);
+    if(btnLogout) btnLogout.addEventListener('click', logout);
+    if(btnToggleChart) btnToggleChart.addEventListener('click', toggleChart);
+    if(btnCloseChart) btnCloseChart.addEventListener('click', toggleChart);
 
     const authForm = document.getElementById('authForm');
     const adminForm = document.getElementById('adminForm');
@@ -541,6 +551,11 @@ document.getElementById('tradeForm').onsubmit = async (e) => {
     const inst = marketData.find(m => m.symbol === instName);
     const user = auth.currentUser;
     
+    if(!user) {
+        showNotification('Login required to add trades.', 'error');
+        return;
+    }
+    
     const entry = parseFloat(document.getElementById('f-entry').value) || inst.price;
     const sl = parseFloat(document.getElementById('f-sl').value) || 0;
     const tp = parseFloat(document.getElementById('f-tp').value) || 0;
@@ -564,6 +579,14 @@ document.getElementById('tradeForm').onsubmit = async (e) => {
         plannedRR: plannedRR,
         status: 'running',
         openTime: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(err => {
+        console.error('Trade add error:', err);
+        if(err && err.code === 'permission-denied') {
+            showNotification('Insufficient Firestore permissions to add trades.', 'error');
+        } else {
+            showNotification('Failed to add trade.', 'error');
+        }
+        throw err;
     });
     closeModal();
     e.target.reset();
